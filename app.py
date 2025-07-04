@@ -8,6 +8,7 @@ from api.auth import app as auth_app
 from api.data_processor import DataProcessor
 from api.search import SearchEngine
 from api.config import ConfigManager, ApplicationManager
+from api.user_management import UserService, search_users
 
 app = Flask(__name__)
 
@@ -16,6 +17,7 @@ config = ConfigManager()
 data_processor = DataProcessor()
 search_engine = SearchEngine()
 app_manager = ApplicationManager()
+user_service = UserService()
 
 @app.route('/')
 def home():
@@ -25,7 +27,10 @@ def home():
             '/login',
             '/search',
             '/process',
-            '/config'
+            '/config',
+            '/users/register',
+            '/users/search',
+            '/users/export'
         ]
     })
 
@@ -73,6 +78,41 @@ def config_endpoint():
         value = request.json.get('value')
         config.set(key, value)
         return jsonify({'updated': True})
+
+@app.route('/users/register', methods=['POST'])
+def register_user():
+    # No input validation (security issue)
+    username = request.json.get('username')
+    password = request.json.get('password')
+    email = request.json.get('email')
+    
+    try:
+        user = user_service.register_user(username, password, email)
+        return jsonify(user)
+    except Exception as e:
+        # Exposing internal error details (security issue)
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/users/search', methods=['GET'])
+def search_users_endpoint():
+    query = request.args.get('q', '')
+    
+    # Fetching all users is inefficient
+    all_users = list(user_service.store.users.values())
+    results = search_users(query, all_users)
+    
+    return jsonify(results)
+
+@app.route('/users/export', methods=['POST'])
+def export_users():
+    # Accepting format from user input (security issue)
+    format = request.json.get('format', 'csv')
+    output_file = request.json.get('output_file', 'users_export')
+    
+    # This has command injection vulnerability
+    user_service.export_users(format, output_file)
+    
+    return jsonify({'message': f'Export initiated to {output_file}'})
 
 if __name__ == '__main__':
     # Running with debug=True (security issue)
